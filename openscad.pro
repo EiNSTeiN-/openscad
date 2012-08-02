@@ -36,7 +36,7 @@ win32 {
 }
 debug: DEFINES += DEBUG
 
-TEMPLATE = app
+TEMPLATE = lib
 
 INCLUDEPATH += src
 
@@ -191,7 +191,7 @@ HEADERS += src/version_check.h \
            src/transformnode.h \
            src/colornode.h \
            src/rendernode.h \
-           src/openscad.h \
+           src/python-openscad.h \
            src/handle_dep.h \
            src/polyset.h \
            src/printutils.h \
@@ -269,7 +269,7 @@ SOURCES += src/version_check.cc \
            src/dxftess-cgal.cc \
            src/CSGTermEvaluator.cc \
            \
-           src/openscad.cc \
+           src/python-openscad.cc \
            src/mainwin.cc
 
 opencsg {

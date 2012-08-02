@@ -1380,7 +1380,9 @@ void MainWindow::actionExportSTLorOFF(bool)
 		PRINTB("Can't open file \"%s\" for export", stl_filename.toStdString());
 	}
 	else {
-		if (stl_mode) export_stl(this->root_N, fstream);
+		if (stl_mode) {
+            fstream << export_stl(this->root_N);
+        }
 		else export_off(this->root_N, fstream);
 		fstream.close();
 

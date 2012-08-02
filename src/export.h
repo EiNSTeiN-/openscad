@@ -5,14 +5,14 @@
 
 #ifdef ENABLE_CGAL
 
-void export_stl(class CGAL_Nef_polyhedron *root_N, std::ostream &output);
+std::string export_stl(class CGAL_Nef_polyhedron *root_N);
 void export_off(CGAL_Nef_polyhedron *root_N, std::ostream &output);
 void export_dxf(CGAL_Nef_polyhedron *root_N, std::ostream &output);
 
 #endif
 
 #ifdef DEBUG
-void export_stl(const class PolySet &ps, std::ostream &output);
+std::string export_stl(const class PolySet &ps);
 #endif
 
 #endif

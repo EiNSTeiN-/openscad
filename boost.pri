@@ -67,4 +67,6 @@ boost {
 
   LIBS += $$BOOST_LINK_FLAGS
 
+  QMAKE_INCDIR += /usr/include/python2.7/
+  QMAKE_LFLAGS += -fPIC
 }

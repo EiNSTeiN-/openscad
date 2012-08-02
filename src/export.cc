@@ -37,9 +37,11 @@
 	Saves the current 3D CGAL Nef polyhedron as STL to the given file.
 	The file must be open.
  */
-void export_stl(CGAL_Nef_polyhedron *root_N, std::ostream &output)
+std::string export_stl(CGAL_Nef_polyhedron *root_N)
 {
 	CGAL::Failure_behaviour old_behaviour = CGAL::set_error_behaviour(CGAL::THROW_EXCEPTION);
+    std::stringstream output;
+    
 	try {
 	CGAL_Polyhedron P;
   root_N->p3->convert_to_Polyhedron(P);
@@ -115,6 +117,8 @@ void export_stl(CGAL_Nef_polyhedron *root_N, std::ostream &output)
 		PRINTB("CGAL error in CGAL_Nef_polyhedron3::convert_to_Polyhedron(): %s", e.what());
 	}
 	CGAL::set_error_behaviour(old_behaviour);
+    
+    return output.str();
 }
 
 void export_off(CGAL_Nef_polyhedron *root_N, std::ostream &output)
@@ -199,8 +203,9 @@ void export_dxf(CGAL_Nef_polyhedron *root_N, std::ostream &output)
 
 #ifdef DEBUG
 #include <boost/foreach.hpp>
-void export_stl(const PolySet &ps, std::ostream &output)
+std::string export_stl(const PolySet &ps)
 {
+    std::stringstream output;
 	output << "solid OpenSCAD_PolySet\n";
 	BOOST_FOREACH(const PolySet::Polygon &p, ps.polygons) {
 		output << "facet\n";
@@ -212,5 +217,6 @@ void export_stl(const PolySet &ps, std::ostream &output)
 		output << "endfacet\n";
 	}
 	output << "endsolid OpenSCAD_PolySet\n";
+    return output.str();
 }
 #endif
