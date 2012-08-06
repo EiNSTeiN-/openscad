@@ -13,10 +13,6 @@
 #
 # http://en.wikibooks.org/wiki/OpenSCAD_User_Manual
 
-isEmpty(QT_VERSION) {
-  error("Please use qmake for Qt 4 (probably qmake-qt4)")
-}
-
 # Auto-include config_<variant>.pri if the VARIANT variable is give on the
 # command-line, e.g. qmake VARIANT=mybuild
 !isEmpty(VARIANT) {
@@ -44,7 +40,7 @@ INCLUDEPATH += src
 # Used when manually installing 3rd party libraries
 OPENSCAD_LIBDIR = $$(OPENSCAD_LIBRARIES)
 !isEmpty(OPENSCAD_LIBDIR) {
-  QMAKE_INCDIR_QT = $$OPENSCAD_LIBDIR/include $$QMAKE_INCDIR_QT 
+  //QMAKE_INCDIR_QT = $$OPENSCAD_LIBDIR/include $$QMAKE_INCDIR_QT 
   QMAKE_LIBDIR = $$OPENSCAD_LIBDIR/lib $$QMAKE_LIBDIR
 }
 else {
@@ -78,8 +74,9 @@ win32 {
   RC_FILE = openscad_win32.rc
 }
 
-CONFIG += qt
-QT += opengl
+
+//CONFIG += qt
+//QT += opengl
 
 # see http://fedoraproject.org/wiki/UnderstandingDSOLinkChange
 # and https://github.com/openscad/openscad/pull/119
@@ -149,25 +146,9 @@ win32 {
   YACCSOURCES += src/parser.y
 }
 
-RESOURCES = openscad.qrc
-
-FORMS   += src/MainWindow.ui \
-           src/Preferences.ui \
-           src/OpenCSGWarningDialog.ui \
-           src/ProgressWidget.ui
-
 HEADERS += src/version_check.h \
-           src/ProgressWidget.h \
            src/parsersettings.h \
-           src/renderer.h \
-           src/rendersettings.h \
-           src/ThrownTogetherRenderer.h \
-           src/CGAL_renderer.h \
            src/OGL_helper.h \
-           src/GLView.h \
-           src/MainWindow.h \
-           src/Preferences.h \
-           src/OpenCSGWarningDialog.h \
            src/builtin.h \
            src/context.h \
            src/csgterm.h \
@@ -179,7 +160,6 @@ HEADERS += src/version_check.h \
            src/expression.h \
            src/function.h \
            src/grid.h \
-           src/highlighter.h \
            src/module.h \
            src/node.h \
            src/csgnode.h \
@@ -197,7 +177,6 @@ HEADERS += src/version_check.h \
            src/printutils.h \
            src/value.h \
            src/progress.h \
-           src/editor.h \
            src/visitor.h \
            src/state.h \
            src/traverser.h \
@@ -212,10 +191,10 @@ HEADERS += src/version_check.h \
            src/memory.h \
            src/linalg.h \
            src/system-gl.h \
-           src/stl-utils.h
+           src/stl-utils.h \
+           src/ParserContext.h
 
 SOURCES += src/version_check.cc \
-           src/ProgressWidget.cc \
            src/mathc99.cc \
            src/linalg.cc \
            src/handle_dep.cc \
@@ -252,30 +231,16 @@ SOURCES += src/version_check.cc \
            src/PolySetCache.cc \
            src/Tree.cc \
            \
-           src/rendersettings.cc \
-           src/highlighter.cc \
-           src/Preferences.cc \
-           src/OpenCSGWarningDialog.cc \
-           src/editor.cc \
-           src/glview.cc \
-           \
            src/builtin.cc \
            src/export.cc \
            src/import.cc \
-           src/renderer.cc \
-           src/ThrownTogetherRenderer.cc \
            src/dxftess.cc \
            src/dxftess-glu.cc \
            src/dxftess-cgal.cc \
            src/CSGTermEvaluator.cc \
            \
            src/python-openscad.cc \
-           src/mainwin.cc
-
-opencsg {
-  HEADERS += src/OpenCSGRenderer.h
-  SOURCES += src/OpenCSGRenderer.cc
-}
+           src/ParserContext.cc \
 
 cgal {
 HEADERS += src/cgal.h \
@@ -284,19 +249,15 @@ HEADERS += src/cgal.h \
            src/CGALEvaluator.h \
            src/CGALCache.h \
            src/PolySetCGALEvaluator.h \
-           src/CGALRenderer.h \
-           src/CGAL_Nef_polyhedron.h \
-           src/cgalworker.h
+           src/CGAL_Nef_polyhedron.h
 
 SOURCES += src/cgalutils.cc \
            src/CGALEvaluator.cc \
            src/PolySetCGALEvaluator.cc \
            src/CGALCache.cc \
-           src/CGALRenderer.cc \
            src/CGAL_Nef_polyhedron.cc \
            src/CGAL_Nef_polyhedron_DxfData.cc \
-           src/cgaladv_minkowski2.cc \
-           src/cgalworker.cc
+           src/cgaladv_minkowski2.cc
 }
 
 macx {

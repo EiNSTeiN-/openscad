@@ -26,6 +26,11 @@
 
 %expect 1 /* Expect 1 shift/reduce conflict for ifelse_statement - "dangling else problem" */
 
+%pure_parser
+%parse-param {ParserContext *p_ctx}
+%lex-param   {ParserContext *p_ctx}
+//%parse-param {int *randomness}
+
 %{
 
 #include <sys/types.h>
@@ -42,21 +47,16 @@
 #include <sstream>
 #include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
+#include "ParserContext.h"
 
 namespace fs = boost::filesystem;
 #include "boosty.h"
 
-int parser_error_pos = -1;
+typedef union YYSTYPE;
+extern int parserlex(YYSTYPE*, ParserContext *);
+void yyerror(ParserContext *, char const *s);
 
-int parserlex(void);
-void yyerror(char const *s);
-
-int lexerget_lineno(void);
-int lexerlex_destroy(void);
-int lexerlex(void);
-
-std::vector<Module*> module_stack;
-Module *currmodule;
+int lexerget_lineno (yyscan_t yyscanner );
 
 class ArgContainer {
 public: 
@@ -131,9 +131,10 @@ public:
 
 %%
 
+
 input: 
 	/* empty */ |
-	TOK_USE { currmodule->usedlibs[$1] = NULL; } input |
+	TOK_USE { PARSER()->currmodule->usedlibs[$1] = NULL; } input |
 	statement input ;
 
 inner_input: 
@@ -145,45 +146,45 @@ statement:
 	'{' inner_input '}' |
 	module_instantiation {
 		if ($1) {
-			currmodule->addChild($1);
+			PARSER()->currmodule->addChild($1);
 		} else {
 			delete $1;
 		}
 	} |
 	TOK_ID '=' expr ';' {
 		bool add_new_assignment = true;
-		for (size_t i = 0; i < currmodule->assignments_var.size(); i++) {
-			if (currmodule->assignments_var[i] != $1)
+		for (size_t i = 0; i < PARSER()->currmodule->assignments_var.size(); i++) {
+			if (PARSER()->currmodule->assignments_var[i] != $1)
 				continue;
-			delete currmodule->assignments_expr[i];
-			currmodule->assignments_expr[i] = $3;
+			delete PARSER()->currmodule->assignments_expr[i];
+			PARSER()->currmodule->assignments_expr[i] = $3;
 			add_new_assignment = false;
 		}
 		if (add_new_assignment) {
-			currmodule->assignments_var.push_back($1);
-			currmodule->assignments_expr.push_back($3);
+			PARSER()->currmodule->assignments_var.push_back($1);
+			PARSER()->currmodule->assignments_expr.push_back($3);
 			free($1);
 		}
 	} |
 	TOK_MODULE TOK_ID '(' arguments_decl optional_commas ')' {
-		Module *p = currmodule;
-		module_stack.push_back(currmodule);
-		currmodule = new Module();
-		p->modules[$2] = currmodule;
-		currmodule->argnames = $4->argnames;
-		currmodule->argexpr = $4->argexpr;
+		Module *p = PARSER()->currmodule;
+		PARSER()->module_stack.push_back(PARSER()->currmodule);
+		PARSER()->currmodule = new Module();
+		p->modules[$2] = PARSER()->currmodule;
+		PARSER()->currmodule->argnames = $4->argnames;
+		PARSER()->currmodule->argexpr = $4->argexpr;
 		free($2);
 		delete $4;
 	} statement {
-		currmodule = module_stack.back();
-		module_stack.pop_back();
+		PARSER()->currmodule = PARSER()->module_stack.back();
+		PARSER()->module_stack.pop_back();
 	} |
 	TOK_FUNCTION TOK_ID '(' arguments_decl optional_commas ')' '=' expr {
 		Function *func = new Function();
 		func->argnames = $4->argnames;
 		func->argexpr = $4->argexpr;
 		func->expr = $8;
-		currmodule->functions[$2] = func;
+		PARSER()->currmodule->functions[$2] = func;
 		free($2);
 		delete $4;
 	} ';' ;
@@ -536,42 +537,16 @@ argument_call:
 
 %%
 
-int parserlex(void)
+extern int lexerlex (YYSTYPE* yylval_param ,yyscan_t yyscanner);
+
+int parserlex(YYSTYPE *yylval, ParserContext* p_ctx)
 {
-	return lexerlex();
+	return lexerlex(yylval, p_ctx->scanner);
 }
 
-void yyerror (char const *s)
+void yyerror (ParserContext *p_ctx, char const *s)
 {
 	// FIXME: We leak memory on parser errors...
-	PRINTB("Parser error in line %d: %s\n", lexerget_lineno() % s);
-	currmodule = NULL;
-}
-
-extern void lexerdestroy();
-extern FILE *lexerin;
-extern const char *parser_input_buffer;
-const char *parser_input_buffer;
-std::string parser_source_path;
-
-Module *parse(const char *text, const char *path, int debug)
-{
-	lexerin = NULL;
-	parser_error_pos = -1;
-	parser_input_buffer = text;
-	parser_source_path = std::string(path);
-
-	module_stack.clear();
-	Module *rootmodule = currmodule = new Module();
-        //        PRINTB_NOCACHE("New module: %s %p", "root" % rootmodule);
-
-	parserdebug = debug;
-	parserparse();
-        lexerdestroy();
-	lexerlex_destroy();
-
-	if (!rootmodule) return NULL;
-
-	parser_error_pos = -1;
-	return rootmodule;
+	PRINTB("Parser error in line %d: %s\n", lexerget_lineno(p_ctx->scanner) % s);
+	p_ctx->currmodule = NULL;
 }

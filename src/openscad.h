@@ -27,15 +27,15 @@
 #ifndef OPENSCAD_H
 #define OPENSCAD_H
 
-extern class Module *parse(const char *text, const char *path, int debug);
+//extern class Module *parse(const char *text, const char *path, int debug);
 extern int get_fragments_from_r(double r, double fn, double fs, double fa);
 
 #include <string>
-extern std::string commandline_commands;
+//extern std::string commandline_commands;
 
 // The CWD when application started. We shouldn't change CWD, but until we stop
 // doing this, use currentdir to get the original CWD.
-extern std::string currentdir;
+//extern std::string currentdir;
 
 #endif
 

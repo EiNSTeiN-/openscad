@@ -37,6 +37,7 @@
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 #include "boosty.h"
+#include "ParserContext.h"
 
 //isatty for visual c++ and mingw-cross-env
 #if defined __WIN32__ && ! defined _MSC_VER
@@ -47,18 +48,20 @@ extern "C" int __cdecl _isatty(int _FileHandle);
 #define isatty _isatty
 #endif
 
-std::string stringcontents;
-int lexerget_lineno(void);
-#ifdef __GNUC__
-static void yyunput(int, char*) __attribute__((unused));
-#endif
-extern const char *parser_input_buffer;
-extern std::string parser_source_path;
-extern Module *currmodule;
+//std::string stringcontents;
+//int lexerget_lineno(void);
+//#ifdef __GNUC__
+//static void yyunput(int, char*) __attribute__((unused));
+//#endif
+//extern const char *parser_input_buffer;
+//extern std::string parser_source_path;
+//extern Module *currmodule;
+
+#define LEXER_TO_PARSER() ((ParserContext *)lexerget_extra(yyscanner))
 
 #define YY_INPUT(buf,result,max_size) {   \
-  if (yyin && yyin != stdin) {            \
-    int c = fgetc(yyin);                  \
+  if (lexerget_in(yyscanner) && lexerget_in(yyscanner) != stdin) {            \
+    int c = fgetc(lexerget_in(yyscanner));                  \
     if (c >= 0) {                         \
       result = 1;                         \
       buf[0] = c;                         \
@@ -66,28 +69,25 @@ extern Module *currmodule;
       result = YY_NULL;                   \
     }                                     \
   } else {                                \
-    if (*parser_input_buffer) {           \
+    if (*LEXER_TO_PARSER()->parser_input_buffer) {  \
       result = 1;                         \
-      buf[0] = *(parser_input_buffer++);  \
-      parser_error_pos++;                 \
+      buf[0] = *(LEXER_TO_PARSER()->parser_input_buffer++);  \
+      LEXER_TO_PARSER()->parser_error_pos++;                 \
     } else {                              \
       result = YY_NULL;                   \
     }                                     \
   }                                       \
 }
 
-void includefile();
-fs::path sourcepath();
-std::vector<fs::path> path_stack;
-std::vector<FILE*> openfiles;
-
-std::string filename;
-std::string filepath;
+void includefile(yyscan_t yyscanner);
+fs::path sourcepath(yyscan_t);
 
 %}
 
 %option yylineno
 %option noyywrap
+%option reentrant
+%option bison-bridge
 
 %x cond_comment cond_string
 %x cond_include
@@ -100,44 +100,44 @@ E [Ee][+-]?{D}+
 
 include[ \t\r\n>]*"<"	{ BEGIN(cond_include); }
 <cond_include>{
-[^\t\r\n>]*"/"	{ filepath = yytext; }
-[^\t\r\n>/]+	{ filename = yytext; }
-">"		{ BEGIN(INITIAL); includefile(); }
+[^\t\r\n>]*"/"	{ LEXER_TO_PARSER()->filepath = yytext; }
+[^\t\r\n>/]+	{ LEXER_TO_PARSER()->filename = yytext; }
+">"		{ BEGIN(INITIAL); includefile(yyscanner); }
 }
 
 
 use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 <cond_use>{
-[^\t\r\n>]+	{ filename = yytext; }
+[^\t\r\n>]+	{ LEXER_TO_PARSER()->filename = yytext; }
  ">"		{ 
 	BEGIN(INITIAL); 
         fs::path usepath;
-        if (boosty::is_absolute(fs::path(filename))) {
-          usepath = filename;
+        if (boosty::is_absolute(fs::path(LEXER_TO_PARSER()->filename))) {
+          usepath = LEXER_TO_PARSER()->filename;
         }
         else {
-          usepath = sourcepath() / filename;
+          usepath = sourcepath(yyscanner) / LEXER_TO_PARSER()->filename;
           if (!fs::exists(usepath)) {
-            usepath = locate_file(filename);
+            usepath = locate_file(LEXER_TO_PARSER()->filename);
           }
         }
         /* Only accept regular files which exists */
         if (usepath.has_parent_path() && fs::exists(usepath)) {
           handle_dep(usepath.string());
-          parserlval.text = strdup(usepath.string().c_str());
+          yylval_param->text = strdup(usepath.string().c_str());
           return TOK_USE;
         }
  }
 }
 
 <<EOF>> {
-	if(!path_stack.empty()) path_stack.pop_back();
-	if (yyin && yyin != stdin) {
-		assert(!openfiles.empty());
-		fclose(openfiles.back());
-		openfiles.pop_back();
+	if(!LEXER_TO_PARSER()->path_stack.empty()) LEXER_TO_PARSER()->path_stack.pop_back();
+	if (lexerget_in(yyscanner) && lexerget_in(yyscanner) != stdin) {
+		assert(!LEXER_TO_PARSER()->openfiles.empty());
+		fclose(LEXER_TO_PARSER()->openfiles.back());
+		LEXER_TO_PARSER()->openfiles.pop_back();
 	}
-	yypop_buffer_state();
+	yypop_buffer_state(yyscanner);
 	if (!YY_CURRENT_BUFFER)
 		yyterminate();
 }
@@ -153,19 +153,19 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 
 {D}+{E}? | 
 {D}*\.{D}+{E}? |
-{D}+\.{D}*{E}?          { parserlval.number = boost::lexical_cast<double>(yytext); return TOK_NUMBER; }
-"$"?[a-zA-Z0-9_]+       { parserlval.text = strdup(yytext); return TOK_ID; }
+{D}+\.{D}*{E}?          { yylval_param->number = boost::lexical_cast<double>(yytext); return TOK_NUMBER; }
+"$"?[a-zA-Z0-9_]+       { yylval_param->text = strdup(yytext); return TOK_ID; }
 
-\"			{ BEGIN(cond_string); stringcontents.clear(); }
+\"			{ BEGIN(cond_string); LEXER_TO_PARSER()->stringcontents.clear(); }
 <cond_string>{
-\\n			{ stringcontents += '\n'; }
-\\t			{ stringcontents += '\t'; }
-\\r			{ stringcontents += '\r'; }
-\\\\			{ stringcontents += '\\'; }
-\\\"			{ stringcontents += '"'; }
-[^\\\n\"]+		{ stringcontents += lexertext; }
+\\n			{ LEXER_TO_PARSER()->stringcontents += '\n'; }
+\\t			{ LEXER_TO_PARSER()->stringcontents += '\t'; }
+\\r			{ LEXER_TO_PARSER()->stringcontents += '\r'; }
+\\\\			{ LEXER_TO_PARSER()->stringcontents += '\\'; }
+\\\"			{ LEXER_TO_PARSER()->stringcontents += '"'; }
+[^\\\n\"]+		{ LEXER_TO_PARSER()->stringcontents += lexerget_text(yyscanner); }
 \"			{ BEGIN(INITIAL); 
-			parserlval.text = strdup(stringcontents.c_str()); 
+			yylval_param->text = strdup(LEXER_TO_PARSER()->stringcontents.c_str()); 
 			return TOK_STRING; }
 }
 
@@ -186,11 +186,11 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 
 %%
 
-fs::path sourcepath()
+fs::path sourcepath(yyscan_t yyscanner)
 {
-  if (!path_stack.empty()) return path_stack.back();
+  if (!LEXER_TO_PARSER()->path_stack.empty()) return LEXER_TO_PARSER()->path_stack.back();
   
-  return fs::path(parser_source_path);
+  return fs::path(LEXER_TO_PARSER()->parser_source_path);
 }
 
 /*
@@ -198,50 +198,51 @@ fs::path sourcepath()
   1) include <sourcepath/path/file>
   2) include <librarydir/path/file>
  */
-void includefile()
+void includefile(yyscan_t yyscanner)
 {
-  if (filename.empty()) return;
+  if (LEXER_TO_PARSER()->filename.empty()) return;
 
-  fs::path dirinfo = sourcepath();
-  if (!filepath.empty()) {
-    if (boosty::is_absolute(fs::path(filepath))) {
-      dirinfo = filepath;
+  fs::path dirinfo = sourcepath(yyscanner);
+  if (!LEXER_TO_PARSER()->filepath.empty()) {
+    if (boosty::is_absolute(fs::path(LEXER_TO_PARSER()->filepath))) {
+      dirinfo = LEXER_TO_PARSER()->filepath;
     }
     else {
-      dirinfo /= filepath;
+      dirinfo /= LEXER_TO_PARSER()->filepath;
     }
   }
 
-  fs::path finfo = dirinfo / filename;
+  fs::path finfo = dirinfo / LEXER_TO_PARSER()->filename;
   if (!exists(finfo)) {
-    finfo = locate_file((fs::path(filepath) / filename).string());
+    finfo = locate_file((fs::path(LEXER_TO_PARSER()->filepath) / LEXER_TO_PARSER()->filename).string());
   }
 
-  filepath.clear();
-  path_stack.push_back(finfo.parent_path());
+  LEXER_TO_PARSER()->filepath.clear();
+  LEXER_TO_PARSER()->path_stack.push_back(finfo.parent_path());
 
   std::string fullname = boosty::absolute(finfo).string();
   handle_dep(fullname);
-  currmodule->registerInclude(fullname);
-  yyin = fopen(fullname.c_str(), "r");
-  if (!yyin) {
-    PRINTB("WARNING: Can't open input file '%s'.", filename);
-    path_stack.pop_back();
+  LEXER_TO_PARSER()->currmodule->registerInclude(fullname);
+  FILE* f = fopen(fullname.c_str(), "r");
+  if (!f) {
+    PRINTB("WARNING: Can't open input file '%s'.", LEXER_TO_PARSER()->filename);
+    LEXER_TO_PARSER()->path_stack.pop_back();
     return;
   }
-  openfiles.push_back(yyin);
-  filename.clear();
+  lexerset_in(f, yyscanner);
+  LEXER_TO_PARSER()->openfiles.push_back(f);
+  LEXER_TO_PARSER()->filename.clear();
   
-  yypush_buffer_state(yy_create_buffer(yyin, YY_BUF_SIZE));
+  yypush_buffer_state(yy_create_buffer(f, YY_BUF_SIZE, yyscanner), yyscanner);
 }
 
 /*!
   In case of an error, this will make sure we clean up our custom data structures 
   and close all files.
 */
-void lexerdestroy()
+void lexerdestroy(yyscan_t yyscanner)
 {
-  BOOST_FOREACH (FILE *f, openfiles) fclose(f);
-  openfiles.clear();
-  path_stack.clear();
+  BOOST_FOREACH (FILE *f, LEXER_TO_PARSER()->openfiles) fclose(f);
+  LEXER_TO_PARSER()->openfiles.clear();
+  LEXER_TO_PARSER()->path_stack.clear();
 }

@@ -21,6 +21,7 @@
 #include "builtin.h"
 #include "parsersettings.h"
 #include "handle_dep.h"
+#include "ParserContext.h"
 
 using namespace boost::python;
 /*
@@ -40,9 +41,9 @@ std::string (*export_stl_node)(class CGAL_Nef_polyhedron *) = export_stl;
 std::string (*export_stl_polyset)(const PolySet &) = &export_stl;
 #endif
 
-std::string commandline_commands;
-std::string currentdir;
-QString examplesdir;
+//std::string commandline_commands;
+//std::string currentdir;
+//QString examplesdir;
 
 class VisitorWrap : public Visitor, public wrapper<Visitor>
 {
@@ -54,9 +55,11 @@ class VisitorWrap : public Visitor, public wrapper<Visitor>
 
 BOOST_PYTHON_MODULE(openscad)
 {
-    currentdir = boosty::stringy(fs::current_path());
+    // do some general initialization stuff!
+    Builtins::instance()->initialize();
     
-    def("parse", parse, return_value_policy<manage_new_object>());
+    
+    
     def("parser_init", parser_init);
     def("handle_dep", handle_dep);
     
@@ -68,6 +71,9 @@ BOOST_PYTHON_MODULE(openscad)
     #endif
     
     
+    class_<ParserContext>("ParserContext")
+        .def("parse", &ParserContext::parse, return_value_policy<reference_existing_object>())
+    ;
     class_<Builtins, boost::noncopyable>("Builtins", no_init)
         .def("instance", &Builtins::instance, return_value_policy<reference_existing_object>())
         .staticmethod("instance")
@@ -79,7 +85,7 @@ BOOST_PYTHON_MODULE(openscad)
     ;
     
     class_<Tree>("Tree", init< optional<const AbstractNode *> >())
-        .add_property("root", make_function(&Tree::root, return_value_policy<manage_new_object>()), &Tree::setRoot)
+        .add_property("root", make_function(&Tree::root, return_value_policy<reference_existing_object>()), &Tree::setRoot)
     ;
     
     class_<VisitorWrap, boost::noncopyable>("Visitor")
@@ -94,7 +100,7 @@ BOOST_PYTHON_MODULE(openscad)
     ;
     
     class_<AbstractModule>("AbstractModule")
-        .def("evaluate", &AbstractModule::evaluate, return_value_policy<manage_new_object>())
+        .def("evaluate", &AbstractModule::evaluate, return_value_policy<reference_existing_object>())
     ;
     
     class_<Module, bases<AbstractModule> >("Module")
