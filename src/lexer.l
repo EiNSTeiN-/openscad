@@ -111,6 +111,8 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 [^\t\r\n>]+	{ LEXER_TO_PARSER()->filename = yytext; }
  ">"		{ 
 	BEGIN(INITIAL); 
+     
+     #if 0
         fs::path usepath;
         if (boosty::is_absolute(fs::path(LEXER_TO_PARSER()->filename))) {
           usepath = LEXER_TO_PARSER()->filename;
@@ -127,6 +129,7 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
           yylval_param->text = strdup(usepath.string().c_str());
           return TOK_USE;
         }
+    #endif
  }
 }
 
