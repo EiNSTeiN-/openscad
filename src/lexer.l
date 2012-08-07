@@ -48,21 +48,21 @@ extern "C" int __cdecl _isatty(int _FileHandle);
 #define isatty _isatty
 #endif
 
-//std::string stringcontents;
-//int lexerget_lineno(void);
-//#ifdef __GNUC__
-//static void yyunput(int, char*) __attribute__((unused));
-//#endif
-//extern const char *parser_input_buffer;
-//extern std::string parser_source_path;
-//extern Module *currmodule;
+class IncludeFile {
+public:
+    IncludeFile(std::string content) : content(content), pos(0) {}
+    char getc() { return content[pos++]; }
+private:
+    std::string content;
+    unsigned int pos;
+};
 
 #define LEXER_TO_PARSER() ((ParserContext *)lexerget_extra(yyscanner))
 
 #define YY_INPUT(buf,result,max_size) {   \
-  if (lexerget_in(yyscanner) && lexerget_in(yyscanner) != stdin) {            \
-    int c = fgetc(lexerget_in(yyscanner));                  \
-    if (c >= 0) {                         \
+  if (LEXER_TO_PARSER()->includestack.size() > 0) {            \
+    int c = LEXER_TO_PARSER()->includestack.back()->getc();                  \
+    if (c != 0) {                         \
       result = 1;                         \
       buf[0] = c;                         \
     } else {                              \
@@ -131,11 +131,12 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 }
 
 <<EOF>> {
-	if(!LEXER_TO_PARSER()->path_stack.empty()) LEXER_TO_PARSER()->path_stack.pop_back();
-	if (lexerget_in(yyscanner) && lexerget_in(yyscanner) != stdin) {
-		assert(!LEXER_TO_PARSER()->openfiles.empty());
-		fclose(LEXER_TO_PARSER()->openfiles.back());
-		LEXER_TO_PARSER()->openfiles.pop_back();
+	if(!LEXER_TO_PARSER()->path_stack.empty())
+        LEXER_TO_PARSER()->path_stack.pop_back();
+	if (LEXER_TO_PARSER()->includestack.size() > 0) {
+		assert(!LEXER_TO_PARSER()->includestack.empty());
+		delete LEXER_TO_PARSER()->includestack.back();
+		LEXER_TO_PARSER()->includestack.pop_back();
 	}
 	yypop_buffer_state(yyscanner);
 	if (!YY_CURRENT_BUFFER)
@@ -188,7 +189,8 @@ use[ \t\r\n>]*"<"	{ BEGIN(cond_use); }
 
 fs::path sourcepath(yyscan_t yyscanner)
 {
-  if (!LEXER_TO_PARSER()->path_stack.empty()) return LEXER_TO_PARSER()->path_stack.back();
+  if (!LEXER_TO_PARSER()->path_stack.empty())
+      return LEXER_TO_PARSER()->path_stack.back();
   
   return fs::path(LEXER_TO_PARSER()->parser_source_path);
 }
@@ -200,40 +202,40 @@ fs::path sourcepath(yyscan_t yyscanner)
  */
 void includefile(yyscan_t yyscanner)
 {
-  if (LEXER_TO_PARSER()->filename.empty()) return;
-
-  fs::path dirinfo = sourcepath(yyscanner);
-  if (!LEXER_TO_PARSER()->filepath.empty()) {
+    if (LEXER_TO_PARSER()->filename.empty()) {
+        return;
+    }
+    
+    fs::path dirinfo = sourcepath(yyscanner);
     if (boosty::is_absolute(fs::path(LEXER_TO_PARSER()->filepath))) {
       dirinfo = LEXER_TO_PARSER()->filepath;
     }
     else {
       dirinfo /= LEXER_TO_PARSER()->filepath;
     }
-  }
+    
+    fs::path finfo = dirinfo / LEXER_TO_PARSER()->filename;
+    if (!LEXER_TO_PARSER()->has_file(finfo.string())) {
+        //finfo = locate_file((fs::path(LEXER_TO_PARSER()->filepath) / LEXER_TO_PARSER()->filename).string());
+        PRINTB("WARNING: Can't find input file '%s'.", finfo.string());
+        return;
+    }
+    
+    LEXER_TO_PARSER()->path_stack.push_back(finfo.parent_path());
 
-  fs::path finfo = dirinfo / LEXER_TO_PARSER()->filename;
-  if (!exists(finfo)) {
-    finfo = locate_file((fs::path(LEXER_TO_PARSER()->filepath) / LEXER_TO_PARSER()->filename).string());
-  }
-
-  LEXER_TO_PARSER()->filepath.clear();
-  LEXER_TO_PARSER()->path_stack.push_back(finfo.parent_path());
-
-  std::string fullname = boosty::absolute(finfo).string();
-  handle_dep(fullname);
-  LEXER_TO_PARSER()->currmodule->registerInclude(fullname);
-  FILE* f = fopen(fullname.c_str(), "r");
-  if (!f) {
-    PRINTB("WARNING: Can't open input file '%s'.", LEXER_TO_PARSER()->filename);
-    LEXER_TO_PARSER()->path_stack.pop_back();
-    return;
-  }
-  lexerset_in(f, yyscanner);
-  LEXER_TO_PARSER()->openfiles.push_back(f);
-  LEXER_TO_PARSER()->filename.clear();
-  
-  yypush_buffer_state(yy_create_buffer(f, YY_BUF_SIZE, yyscanner), yyscanner);
+    std::string fullname = finfo.string(); //boosty::absolute(finfo).string();
+    //handle_dep(fullname);
+    
+    LEXER_TO_PARSER()->currmodule->registerInclude(fullname);
+    std::string s = LEXER_TO_PARSER()->getsrc(finfo.string());
+    IncludeFile *f = new IncludeFile(s);
+    
+    LEXER_TO_PARSER()->includestack.push_back(f);
+    
+    LEXER_TO_PARSER()->filename.clear();
+    LEXER_TO_PARSER()->filepath.clear();
+    
+    yypush_buffer_state(yy_create_buffer(NULL, YY_BUF_SIZE, yyscanner), yyscanner);
 }
 
 /*!
@@ -242,7 +244,7 @@ void includefile(yyscan_t yyscanner)
 */
 void lexerdestroy(yyscan_t yyscanner)
 {
-  BOOST_FOREACH (FILE *f, LEXER_TO_PARSER()->openfiles) fclose(f);
-  LEXER_TO_PARSER()->openfiles.clear();
+  BOOST_FOREACH (IncludeFile *f, LEXER_TO_PARSER()->includestack) delete f;
+  LEXER_TO_PARSER()->includestack.clear();
   LEXER_TO_PARSER()->path_stack.clear();
 }

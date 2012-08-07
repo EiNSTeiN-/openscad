@@ -22,11 +22,33 @@ ParserContext::ParserContext()
     rootmodule = new Module();
 }
 
-Module *ParserContext::parse(const char *text, const char *path, int debug)
+int ParserContext::has_file(std::string filename)
+{
+    return (this->srcfiles.find(filename) != this->srcfiles.end());
+}
+
+int ParserContext::add(std::string filename, std::string text)
+{
+    this->srcfiles[filename] = text;
+    return 0;
+}
+
+std::string ParserContext::getsrc(std::string filename)
+{
+    if(!this->has_file(filename))
+        return NULL;
+    return std::string(this->srcfiles[filename]);
+}
+
+Module *ParserContext::parse(std::string filename)
 {
     
-    this->parser_input_buffer = text;
-    this->parser_source_path = std::string(path);
+    if(!this->has_file(filename))
+        return NULL;
+    
+    this->parser_input_buffer = this->srcfiles[filename].c_str();
+    this->parser_source_path = std::string("/");
+    this->path_stack.push_back("/");
     
     lexerlex_init_extra(this, &this->scanner);
     
@@ -34,7 +56,7 @@ Module *ParserContext::parse(const char *text, const char *path, int debug)
     
     this->currmodule = this->rootmodule;
     
-    parserdebug = debug;
+    //parserdebug = 1;
     
     parserparse(this);
     lexerdestroy(this->scanner);

@@ -2,7 +2,7 @@
 #ifndef __PARSER_CONTEXT_H
 #define __PARSER_CONTEXT_H
 
-
+#include <string>
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
@@ -15,15 +15,24 @@ namespace fs = boost::filesystem;
 
 typedef void* yyscan_t;
 
+class IncludeFile;
+
 class ParserContext {
 public:
     ParserContext();
-
-    Module *parse(const char *text, const char *path, int debug);
-
+    
+    // add a new file with its text.
+    int add(std::string filename, std::string text);
+    
+    int has_file(std::string filename);
+    std::string getsrc(std::string filename);
+    
+    // parse a file which must already be add()'ed
+    Module *parse(std::string filename);
+    
+    // below is the parser stuff
     yyscan_t scanner;
     
-    //FILE *lexerin;
     const char *parser_input_buffer;
     std::string parser_source_path;
     int parser_error_pos;
@@ -31,7 +40,7 @@ public:
     std::string stringcontents;
     
     std::vector<fs::path> path_stack;
-    std::vector<FILE*> openfiles;
+    std::vector<IncludeFile *> includestack;
     
     std::string filename;
     std::string filepath;
@@ -39,6 +48,10 @@ public:
     std::vector<Module*> module_stack;
     Module *rootmodule;
     Module *currmodule;
+    
+private:
+    // a map of all files in this project.
+    boost::unordered_map<std::string, std::string> srcfiles;
 };
 
 #endif /* __PARSER_CONTEXT_H */

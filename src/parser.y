@@ -29,7 +29,6 @@
 %pure_parser
 %parse-param {ParserContext *p_ctx}
 %lex-param   {ParserContext *p_ctx}
-//%parse-param {int *randomness}
 
 %{
 

@@ -58,8 +58,6 @@ BOOST_PYTHON_MODULE(openscad)
     // do some general initialization stuff!
     Builtins::instance()->initialize();
     
-    
-    
     def("parser_init", parser_init);
     def("handle_dep", handle_dep);
     
@@ -72,6 +70,9 @@ BOOST_PYTHON_MODULE(openscad)
     
     
     class_<ParserContext>("ParserContext")
+        .def("has_file", &ParserContext::has_file)
+        .def("getsrc", &ParserContext::getsrc)
+        .def("add", &ParserContext::add)
         .def("parse", &ParserContext::parse, return_value_policy<reference_existing_object>())
     ;
     class_<Builtins, boost::noncopyable>("Builtins", no_init)
