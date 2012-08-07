@@ -218,7 +218,7 @@ void includefile(yyscan_t yyscanner)
     }
     
     fs::path finfo = dirinfo / LEXER_TO_PARSER()->filename;
-    if (!LEXER_TO_PARSER()->has_file(finfo.string())) {
+    if (!LEXER_TO_PARSER()->files_cache->has_file(finfo.string())) {
         //finfo = locate_file((fs::path(LEXER_TO_PARSER()->filepath) / LEXER_TO_PARSER()->filename).string());
         PRINTB("WARNING: Can't find input file '%s'.", finfo.string());
         return;
@@ -230,7 +230,7 @@ void includefile(yyscan_t yyscanner)
     //handle_dep(fullname);
     
     LEXER_TO_PARSER()->currmodule->registerInclude(fullname);
-    std::string s = LEXER_TO_PARSER()->getsrc(finfo.string());
+    std::string s = LEXER_TO_PARSER()->files_cache->getsrc(finfo.string());
     IncludeFile *f = new IncludeFile(s);
     
     LEXER_TO_PARSER()->includestack.push_back(f);

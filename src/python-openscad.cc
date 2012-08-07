@@ -1,6 +1,7 @@
 #include <Python.h>
 
 #include <boost/python.hpp>
+#include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
 #include "boosty.h"
 
@@ -53,6 +54,16 @@ class VisitorWrap : public Visitor, public wrapper<Visitor>
     }
 };
 
+class ParserFilesCache_pickle_suite : public boost::python::pickle_suite
+{
+public:
+    static boost::python::tuple getinitargs(ParserFilesCache& files_cache)
+    {
+        return boost::python::make_tuple(files_cache.getfiles());
+    }
+};
+
+
 BOOST_PYTHON_MODULE(openscad)
 {
     // do some general initialization stuff!
@@ -68,11 +79,13 @@ BOOST_PYTHON_MODULE(openscad)
     def("export_stl", export_stl_polyset);
     #endif
     
-    
-    class_<ParserContext>("ParserContext")
-        .def("has_file", &ParserContext::has_file)
-        .def("getsrc", &ParserContext::getsrc)
-        .def("add", &ParserContext::add)
+    class_<ParserFilesCache>("ParserFilesCache")
+        .def("has_file", &ParserFilesCache::has_file)
+        .def("getsrc", &ParserFilesCache::getsrc)
+        .def("add", &ParserFilesCache::add)
+        .def_pickle(ParserFilesCache_pickle_suite())
+    ;
+    class_<ParserContext>("ParserContext", init<ParserFilesCache *>())
         .def("parse", &ParserContext::parse, return_value_policy<reference_existing_object>())
     ;
     class_<Builtins, boost::noncopyable>("Builtins", no_init)

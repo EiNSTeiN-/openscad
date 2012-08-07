@@ -17,15 +17,26 @@ typedef void* yyscan_t;
 
 class IncludeFile;
 
-class ParserContext {
+typedef boost::unordered_map<std::string, std::string> filemap_t;
+class ParserFilesCache {
 public:
-    ParserContext();
+    ParserFilesCache() {}
+    ParserFilesCache(filemap_t _files) : files(_files) {}
     
     // add a new file with its text.
-    int add(std::string filename, std::string text);
+    int add(char *filename, char *text);
     
     int has_file(std::string filename);
     std::string getsrc(std::string filename);
+    
+    filemap_t& getfiles() { return this->files; }
+private:
+    filemap_t files;
+};
+
+class ParserContext {
+public:
+    ParserContext(ParserFilesCache *cache);
     
     // parse a file which must already be add()'ed
     Module *parse(std::string filename);
@@ -49,9 +60,8 @@ public:
     Module *rootmodule;
     Module *currmodule;
     
-private:
     // a map of all files in this project.
-    boost::unordered_map<std::string, std::string> srcfiles;
+    ParserFilesCache *files_cache;
 };
 
 #endif /* __PARSER_CONTEXT_H */
