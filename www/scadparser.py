@@ -19,6 +19,10 @@ class ScadParser():
         r = self.files.add(name, text)
         return r
     
+    def getfiles(self):
+        r = self.files.getfiles()
+        return r
+    
     def to_stl(self, name):
         
         ctx = openscad.ParserContext(self.files)

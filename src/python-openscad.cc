@@ -64,6 +64,22 @@ public:
 };
 
 
+class ParserFilesCache_wrap : public ParserFilesCache, public wrapper<ParserFilesCache>
+{
+public:
+    boost::python::dict getfiles_wrap()
+    {
+        boost::python::dict d;
+        filemap_t& files = this->getfiles();
+        
+        for (filemap_t::const_iterator it = files.begin(); it != files.end(); ++it)
+            d[it->first] = it->second;
+        
+        return d;
+    }
+};
+
+
 BOOST_PYTHON_MODULE(openscad)
 {
     // do some general initialization stuff!
@@ -79,9 +95,10 @@ BOOST_PYTHON_MODULE(openscad)
     def("export_stl", export_stl_polyset);
     #endif
     
-    class_<ParserFilesCache>("ParserFilesCache")
+    class_<ParserFilesCache_wrap, boost::noncopyable>("ParserFilesCache")
         .def("has_file", &ParserFilesCache::has_file)
         .def("getsrc", &ParserFilesCache::getsrc)
+        .def("getfiles", &ParserFilesCache_wrap::getfiles_wrap)
         .def("add", &ParserFilesCache::add)
         .def_pickle(ParserFilesCache_pickle_suite())
     ;

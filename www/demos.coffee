@@ -15,6 +15,7 @@ class App
             <div style="float: left; width: 800px; height: 20px; border: 1px #808080 solid; padding: 4px;">
                 <a href="#demo/simple" id="simple">simple demo</a>
                 <a href="#demo/include" id="include">include demo</a>
+                <a href="#demo/git" id="git">git demo</a>
             </div>
             <div id="demo" style="float: left; border: 0px #808080 solid; padding: 4px;">
                 
@@ -28,12 +29,14 @@ class App
         
         @select('#simple')[0].observe 'click', (e) => @show_demo(SimpleDemo)
         @select('#include')[0].observe 'click', (e) => @show_demo(IncludeDemo)
+        @select('#git')[0].observe 'click', (e) => @show_demo(GitDemo)
         
         demo = @anchor_demo()
         console.log demo
         if demo?
             @show_demo(SimpleDemo) if demo == 'simple'
             @show_demo(IncludeDemo) if demo == 'include'
+            @show_demo(GitDemo) if demo == 'git'
         
         return
     
@@ -257,6 +260,201 @@ class IncludeDemo
                 return
             onException: (t, e) => e.url = t.url; new api.Exception(e)
             onFailure: (t) => new api.Exception('Ajax error while getting photo list: ' + t.toString())
+        }
+        
+        return
+        
+    to_stl: (name) ->
+        
+        console.log 'generating stl'
+        
+        @stl.loadFromUrl('/scad.wsgi/to_stl?name=' + name)
+        
+        return
+    
+    render: () =>
+        
+        return
+
+class GitDemo
+    # New photo instance freshly uploaded to the server.
+    
+    constructor: (options) ->
+        @self = new Element('div', options)
+        Object.extend(@self, GitDemo.prototype)
+        @self.init()
+        return @self
+    
+    init: () ->
+        
+        t = """
+        <div>
+            <div style="float: left; width: 500px; height: 500px; border: 0px #808080 solid; padding: 4px;">
+                Git URL: <input type="text" id="repo-url" style="width: 365px;" value="https://github.com/GregFrost/rostock.git" />
+                <input id="import" type="button" value="import" />
+                <div id="please-wait">Please wait...</div>
+                <div id="git-browser">
+                    <select id="file">
+                    
+                    </select>
+                    <textarea id="text" style="width: 490px; height: 395px;"></textarea>
+                    <input id="submit" type="button" value="Generate this file" /> changes are not saved for now...
+                </div>
+            </div>
+            <div style="float: left; width: 800px; height: 500px; border: 0px #808080 solid; padding: 4px;">
+                <canvas id="viewer" style="border: 1px solid;" width="780" height="468" ></canvas>
+
+            </div>
+        """
+        
+        data = {}
+        
+        @insert new Template(t).evaluate(data)
+        
+        @select('#please-wait')[0].hide()
+        @select('#git-browser')[0].hide()
+        
+        @viewer = new JSC3D.Viewer(@select('#viewer')[0])
+        @viewer.setParameter('InitRotationX', -20);
+        @viewer.setParameter('InitRotationY', 20);
+        @viewer.setParameter('InitRotationZ', 0);
+        @viewer.setParameter('ModelColor', '#CAA618');
+        @viewer.setParameter('BackgroundColor1', '#FFFFFF');
+        @viewer.setParameter('BackgroundColor2', '#383840');
+        @viewer.setParameter('RenderMode', 'smooth');
+        @viewer.setParameter('Definition', 'standard');
+        @viewer.init();
+        @viewer.update();
+
+        @stl = new JSC3D.StlLoader((scene) => @viewer.replaceScene(scene))
+        
+        @select('#import')[0].observe 'click', (e) => @new_session(e)
+        @select('#submit')[0].observe 'click', (e) => @to_stl($('file').value)
+        @select('#file')[0].observe 'change', (e) => @openfile($('file').value)
+            
+        return
+        
+    new_session: () ->
+        
+        console.log 'creating new session'
+            
+        # Make the request
+        new Ajax.Request '/scad.wsgi/new', {
+            asynchronous: false,
+            parameters: {},
+            evalJSON: true,
+            onSuccess: (response) =>
+                #json = response.responseJSON
+                console.log 'create session response: ' + response.responseText
+                @git_import $('repo-url').value
+                return
+            onException: (t, e) =>
+                console.log(t.toString())
+                console.log(e.toString())
+            onFailure: (t) => console.log(t.toString())
+        }
+        
+        return
+    
+    git_import: (url) ->
+        
+        console.log 'importing repository'
+        
+        $('please-wait').show()
+        
+        # Make the request
+        new Ajax.Request '/scad.wsgi/git_import', {
+            asynchronous: true,
+            parameters: {
+                url: url
+            },
+            evalJSON: true,
+            onSuccess: (response) =>
+                #json = response.responseJSON
+                console.log 'import ' + url + ' response: ' + response.responseText
+                
+                @getfiles()
+                return
+            onException: (t, e) =>
+                console.log(t.toString())
+                console.log(e.toString())
+            onFailure: (t) => console.log(t.toString())
+        }
+        
+        return
+    
+    getfiles: () ->
+        
+        console.log 'getting imported files'
+        
+        # Make the request
+        new Ajax.Request '/scad.wsgi/getfiles', {
+            asynchronous: true,
+            parameters: {
+            },
+            evalJSON: true,
+            onSuccess: (response) =>
+                json = response.responseJSON
+                console.log 'get files response: ' + response.responseText
+                
+                @files = $(json.files)
+                
+                for entry in @files
+                    console.log entry[0]
+                    
+                    o = new Element('option')
+                    o.text = entry[0]
+                    o.value = entry[0]
+                    $('file').add o
+                
+                @openfile @files[0][0]
+                
+                $('please-wait').hide()
+                $('git-browser').show()
+                return
+            onException: (t, e) =>
+                console.log(t.toString())
+                console.log(e.toString())
+            onFailure: (t) => console.log(t.toString())
+        }
+        
+        #console.log 'starting import status checker'
+        #@exec = new PeriodicalExecuter(((pe) => @import_check(pe)), 0.5)
+        
+        return
+    
+    openfile: (name) ->
+        
+        for entry in @files
+            continue if entry[0] != name
+            
+            $('text').value = entry[1]
+            
+            break
+        
+        return
+    
+    
+    add_file: (name, text) ->
+        
+        console.log 'adding file'
+            
+        # Make the request
+        new Ajax.Request '/scad.wsgi/add', {
+            asynchronous: false,
+            parameters: {
+                name: name,
+                text: text
+            },
+            evalJSON: true,
+            onSuccess: (response) =>
+                #json = response.responseJSON
+                console.log 'add file ' + name + ' response: ' + response.responseText
+                return
+            onException: (t, e) =>
+                console.log(t.toString())
+                console.log(e.toString())
+            onFailure: (t) => console.log(t.toString())
         }
         
         return
